@@ -1,22 +1,15 @@
-﻿using System;
-using System.Buffers;
-using System.Collections;
+// Copyright (c) .NET Foundation. All rights reserved.
+// Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
+
+using System;
 using System.Collections.Generic;
-using System.IO.Pipelines;
-using System.Net;
-using Microsoft.AspNetCore.Http.Features;
+
 using Microsoft.AspNetCore.Connections.Features;
+using Microsoft.AspNetCore.Http.Features;
 
 namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Abstractions.Internal
 {
-    public partial class TransportConnection : IFeatureCollection,
-                                               IHttpConnectionFeature,
-                                               IConnectionIdFeature,
-                                               IConnectionTransportFeature,
-                                               IConnectionItemsFeature,
-                                               IMemoryPoolFeature,
-                                               IApplicationTransportFeature,
-                                               ITransportSchedulerFeature
+    public partial class TransportConnection
     {
         private static readonly Type IHttpConnectionFeatureType = typeof(IHttpConnectionFeature);
         private static readonly Type IConnectionIdFeatureType = typeof(IConnectionIdFeature);
@@ -37,6 +30,26 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Abstractions.Internal
         private int _featureRevision;
 
         private List<KeyValuePair<Type, object>> MaybeExtra;
+
+        private void FastReset()
+        {
+            _currentIHttpConnectionFeature = this;
+            _currentIConnectionIdFeature = this;
+            _currentIConnectionTransportFeature = this;
+            _currentIConnectionItemsFeature = this;
+            _currentIMemoryPoolFeature = this;
+            _currentIApplicationTransportFeature = this;
+            _currentITransportSchedulerFeature = this;
+            
+        }
+
+        // Internal for testing
+        internal void ResetFeatureCollection()
+        {
+            FastReset();
+            MaybeExtra?.Clear();
+            _featureRevision++;
+        }
 
         private object ExtraFeatureGet(Type key)
         {
@@ -73,113 +86,51 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Abstractions.Internal
             MaybeExtra.Add(new KeyValuePair<Type, object>(key, value));
         }
 
-        bool IFeatureCollection.IsReadOnly => false;
-
-        int IFeatureCollection.Revision => _featureRevision;
-
-        string IHttpConnectionFeature.ConnectionId
-        {
-            get => ConnectionId;
-            set => ConnectionId = value;
-        }
-
-        IPAddress IHttpConnectionFeature.RemoteIpAddress
-        {
-            get => RemoteAddress;
-            set => RemoteAddress = value;
-        }
-
-        IPAddress IHttpConnectionFeature.LocalIpAddress
-        {
-            get => LocalAddress;
-            set => LocalAddress = value;
-        }
-
-        int IHttpConnectionFeature.RemotePort
-        {
-            get => RemotePort;
-            set => RemotePort = value;
-        }
-
-        int IHttpConnectionFeature.LocalPort
-        {
-            get => LocalPort;
-            set => LocalPort = value;
-        }
-
-        MemoryPool<byte> IMemoryPoolFeature.MemoryPool => MemoryPool;
-
-        IDuplexPipe IConnectionTransportFeature.Transport
-        {
-            get => Transport;
-            set => Transport = value;
-        }
-
-        IDuplexPipe IApplicationTransportFeature.Application
-        {
-            get => Application;
-            set => Application = value;
-        }
-
-        IDictionary<object, object> IConnectionItemsFeature.Items
-        {
-            get => Items;
-            set => Items = value;
-        }
-
-        PipeScheduler ITransportSchedulerFeature.InputWriterScheduler => InputWriterScheduler;
-        PipeScheduler ITransportSchedulerFeature.OutputReaderScheduler => OutputReaderScheduler;
-
-        object IFeatureCollection.this[Type key]
+        private object this[Type key]
         {
             get
             {
+                object feature = null;
                 if (key == IHttpConnectionFeatureType)
                 {
-                    return _currentIHttpConnectionFeature;
+                    feature = _currentIHttpConnectionFeature;
                 }
-
-                if (key == IConnectionIdFeatureType)
+                else if (key == IConnectionIdFeatureType)
                 {
-                    return _currentIConnectionIdFeature;
+                    feature = _currentIConnectionIdFeature;
                 }
-
-                if (key == IConnectionTransportFeatureType)
+                else if (key == IConnectionTransportFeatureType)
                 {
-                    return _currentIConnectionTransportFeature;
+                    feature = _currentIConnectionTransportFeature;
                 }
-
-                if (key == IConnectionItemsFeatureType)
+                else if (key == IConnectionItemsFeatureType)
                 {
-                    return _currentIConnectionItemsFeature;
+                    feature = _currentIConnectionItemsFeature;
                 }
-
-                if (key == IMemoryPoolFeatureType)
+                else if (key == IMemoryPoolFeatureType)
                 {
-                    return _currentIMemoryPoolFeature;
+                    feature = _currentIMemoryPoolFeature;
                 }
-
-                if (key == IApplicationTransportFeatureType)
+                else if (key == IApplicationTransportFeatureType)
                 {
-                    return _currentIApplicationTransportFeature;
+                    feature = _currentIApplicationTransportFeature;
                 }
-
-                if (key == ITransportSchedulerFeatureType)
+                else if (key == ITransportSchedulerFeatureType)
                 {
-                    return _currentITransportSchedulerFeature;
+                    feature = _currentITransportSchedulerFeature;
                 }
-
-                if (MaybeExtra != null)
+                else if (MaybeExtra != null)
                 {
-                    return ExtraFeatureGet(key);
+                    feature = ExtraFeatureGet(key);
                 }
 
-                return null;
+                return feature;
             }
+
             set
             {
                 _featureRevision++;
-
+                
                 if (key == IHttpConnectionFeatureType)
                 {
                     _currentIHttpConnectionFeature = value;
@@ -215,85 +166,81 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Abstractions.Internal
             }
         }
 
-        TFeature IFeatureCollection.Get<TFeature>()
+        private TFeature Get<TFeature>()
         {
+            TFeature feature = default;
             if (typeof(TFeature) == typeof(IHttpConnectionFeature))
             {
-                return (TFeature)_currentIHttpConnectionFeature;
+                feature = (TFeature)_currentIHttpConnectionFeature;
             }
             else if (typeof(TFeature) == typeof(IConnectionIdFeature))
             {
-                return (TFeature)_currentIConnectionIdFeature;
+                feature = (TFeature)_currentIConnectionIdFeature;
             }
             else if (typeof(TFeature) == typeof(IConnectionTransportFeature))
             {
-                return (TFeature)_currentIConnectionTransportFeature;
+                feature = (TFeature)_currentIConnectionTransportFeature;
             }
             else if (typeof(TFeature) == typeof(IConnectionItemsFeature))
             {
-                return (TFeature)_currentIConnectionItemsFeature;
+                feature = (TFeature)_currentIConnectionItemsFeature;
             }
             else if (typeof(TFeature) == typeof(IMemoryPoolFeature))
             {
-                return (TFeature)_currentIMemoryPoolFeature;
+                feature = (TFeature)_currentIMemoryPoolFeature;
             }
             else if (typeof(TFeature) == typeof(IApplicationTransportFeature))
             {
-                return (TFeature)_currentIApplicationTransportFeature;
+                feature = (TFeature)_currentIApplicationTransportFeature;
             }
             else if (typeof(TFeature) == typeof(ITransportSchedulerFeature))
             {
-                return (TFeature)_currentITransportSchedulerFeature;
+                feature = (TFeature)_currentITransportSchedulerFeature;
             }
             else if (MaybeExtra != null)
             {
-                return (TFeature)ExtraFeatureGet(typeof(TFeature));
+                feature = (TFeature)(ExtraFeatureGet(typeof(TFeature)));
             }
 
-            return default;
+            return feature;
         }
 
-        void IFeatureCollection.Set<TFeature>(TFeature instance)
+        private void Set<TFeature>(TFeature feature) 
         {
             _featureRevision++;
-
             if (typeof(TFeature) == typeof(IHttpConnectionFeature))
             {
-                _currentIHttpConnectionFeature = instance;
+                _currentIHttpConnectionFeature = feature;
             }
             else if (typeof(TFeature) == typeof(IConnectionIdFeature))
             {
-                _currentIConnectionIdFeature = instance;
+                _currentIConnectionIdFeature = feature;
             }
             else if (typeof(TFeature) == typeof(IConnectionTransportFeature))
             {
-                _currentIConnectionTransportFeature = instance;
+                _currentIConnectionTransportFeature = feature;
             }
             else if (typeof(TFeature) == typeof(IConnectionItemsFeature))
             {
-                _currentIConnectionItemsFeature = instance;
+                _currentIConnectionItemsFeature = feature;
             }
             else if (typeof(TFeature) == typeof(IMemoryPoolFeature))
             {
-                _currentIMemoryPoolFeature = instance;
+                _currentIMemoryPoolFeature = feature;
             }
             else if (typeof(TFeature) == typeof(IApplicationTransportFeature))
             {
-                _currentIApplicationTransportFeature = instance;
+                _currentIApplicationTransportFeature = feature;
             }
             else if (typeof(TFeature) == typeof(ITransportSchedulerFeature))
             {
-                _currentITransportSchedulerFeature = instance;
+                _currentITransportSchedulerFeature = feature;
             }
             else
             {
-                ExtraFeatureSet(typeof(TFeature), instance);
+                ExtraFeatureSet(typeof(TFeature), feature);
             }
         }
-
-        IEnumerator<KeyValuePair<Type, object>> IEnumerable<KeyValuePair<Type, object>>.GetEnumerator() => FastEnumerable().GetEnumerator();
-
-        IEnumerator IEnumerable.GetEnumerator() => FastEnumerable().GetEnumerator();
 
         private IEnumerable<KeyValuePair<Type, object>> FastEnumerable()
         {
@@ -301,32 +248,26 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Abstractions.Internal
             {
                 yield return new KeyValuePair<Type, object>(IHttpConnectionFeatureType, _currentIHttpConnectionFeature);
             }
-
             if (_currentIConnectionIdFeature != null)
             {
                 yield return new KeyValuePair<Type, object>(IConnectionIdFeatureType, _currentIConnectionIdFeature);
             }
-
             if (_currentIConnectionTransportFeature != null)
             {
                 yield return new KeyValuePair<Type, object>(IConnectionTransportFeatureType, _currentIConnectionTransportFeature);
             }
-
             if (_currentIConnectionItemsFeature != null)
             {
                 yield return new KeyValuePair<Type, object>(IConnectionItemsFeatureType, _currentIConnectionItemsFeature);
             }
-
             if (_currentIMemoryPoolFeature != null)
             {
                 yield return new KeyValuePair<Type, object>(IMemoryPoolFeatureType, _currentIMemoryPoolFeature);
             }
-
             if (_currentIApplicationTransportFeature != null)
             {
                 yield return new KeyValuePair<Type, object>(IApplicationTransportFeatureType, _currentIApplicationTransportFeature);
             }
-
             if (_currentITransportSchedulerFeature != null)
             {
                 yield return new KeyValuePair<Type, object>(ITransportSchedulerFeatureType, _currentITransportSchedulerFeature);
