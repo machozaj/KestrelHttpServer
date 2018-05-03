@@ -15,6 +15,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Libuv.Internal
         public static readonly int? EADDRINUSE = GetEADDRINUSE();
         public static readonly int? ENOTSUP = GetENOTSUP();
         public static readonly int? EPIPE = GetEPIPE();
+        public static readonly int? ECANCELED = GetECANCELED();
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool IsConnectionReset(int errno)
@@ -75,6 +76,23 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Libuv.Internal
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
                 return -45;
+            }
+            return null;
+        }
+
+        private static int? GetECANCELED()
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                return -4081;
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                return -125;
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                return -89;
             }
             return null;
         }

@@ -72,7 +72,11 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Libuv.Internal
                 }
                 catch (UvException ex)
                 {
-                    error = new IOException(ex.Message, ex);
+                    if (ex.StatusCode != LibuvConstants.ECANCELED)
+                    {
+                        // ECANCELED errors will become a ConnectionAbortedExceptions below.
+                        error = new IOException(ex.Message, ex);
+                    }
                 }
                 finally
                 {
